@@ -11,8 +11,11 @@ class IngredientAdmin(admin.ModelAdmin):
 
 
 class RecipeAdmin(admin.ModelAdmin):
-    list_display = ('id', 'name', 'author', 'text')
+    list_display = ('id', 'name', 'author', 'text', 'is_in_favorite')
     list_filter = ('author', 'name', 'tags')
+
+    def is_in_favorite(self, obj):
+        return obj.is_favorited.count()
 
 
 class TagAdmin(admin.ModelAdmin):

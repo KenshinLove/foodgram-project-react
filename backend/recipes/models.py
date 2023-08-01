@@ -1,6 +1,11 @@
+from colorfield.fields import ColorField
+from django.contrib.auth import get_user_model
+from django.core.validators import MinValueValidator
 from django.db import models
 
-from users.models import CustomUser
+from backend.settings import MAX_LENGTH
+
+CustomUser = get_user_model()
 
 
 class Ingredient (models.Model):
@@ -11,20 +16,25 @@ class Ingredient (models.Model):
         max_length=16,
     )
 
+    class Meta:
+        ordering = ('name', )
+
 
 class Tag(models.Model):
     name = models.CharField(
-        max_length=50,
+        max_length=MAX_LENGTH,
         unique=True,
     )
-    color = models.CharField(
-        max_length=7,
+    color = ColorField(
         unique=True,
     )
     slug = models.SlugField(
-        max_length=50,
+        max_length=MAX_LENGTH,
         unique=True,
     )
+
+    class Meta:
+        ordering = ('name', )
 
 
 class Recipe(models.Model):
@@ -43,12 +53,18 @@ class Recipe(models.Model):
     ingredients = models.ManyToManyField(
         Ingredient,
         related_name='recipes',
+        through='IngredientsInRecipe'
     )
     tags = models.ManyToManyField(
         Tag,
         related_name='recipes',
     )
-    cooking_time = models.IntegerField()
+    cooking_time = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1)],
+    )
+
+    class Meta:
+        ordering = ('name', )
 
 
 class IngredientsInRecipe(models.Model):
@@ -62,30 +78,57 @@ class IngredientsInRecipe(models.Model):
         on_delete=models.CASCADE,
         related_name='ingredients_list',
     )
-    amount = models.IntegerField()
+    amount = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1)],
+    )
+
+    class Meta:
+        ordering = ('recipe', )
+        constraints = [
+            models.UniqueConstraint(
+                fields=['recipe', 'ingredient'],
+                name='unique_ingredients'
+            )
+        ]
 
 
 class Favorite(models.Model):
     user = models.ForeignKey(
         CustomUser,
         on_delete=models.CASCADE,
-        related_name='favorites',
     )
     recipe = models.ForeignKey(
         Recipe,
         on_delete=models.CASCADE,
-        related_name='favorites',
     )
+
+    class Meta:
+        ordering = ('user', )
+        default_related_name = 'favorites'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'recipe'],
+                name='unique_combination'
+            )
+        ]
 
 
 class ShoppingCart(models.Model):
     user = models.ForeignKey(
         CustomUser,
         on_delete=models.CASCADE,
-        related_name='shopping_cart',
     )
     recipe = models.ForeignKey(
         Recipe,
         on_delete=models.CASCADE,
-        related_name='shopping_cart',
     )
+
+    class Meta:
+        ordering = ('user', )
+        default_related_name = 'shopping_cart'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'recipe'],
+                name='unique_combination'
+            )
+        ]

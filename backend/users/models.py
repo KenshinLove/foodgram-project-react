@@ -1,5 +1,8 @@
 from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.validators import UnicodeUsernameValidator
 from django.db import models
+
+from .validators import validate_username
 
 
 class CustomUser(AbstractUser):
@@ -10,21 +13,23 @@ class CustomUser(AbstractUser):
     username = models.CharField(
         max_length=150,
         unique=True,
+        validators=(UnicodeUsernameValidator(), validate_username(), ),
     )
     email = models.EmailField(
         max_length=254,
         unique=True,
     )
     first_name = models.CharField(
-        max_length=50,
         null=False,
         blank=False,
     )
     last_name = models.CharField(
-        max_length=50,
         null=False,
         blank=False,
     )
+
+    class Meta:
+        ordering = ('username', )
 
 
 class Subscription(models.Model):
@@ -39,3 +44,12 @@ class Subscription(models.Model):
         on_delete=models.CASCADE,
         related_name='subscriptions_author',
     )
+
+    class Meta:
+        ordering = ('user', )
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'author'],
+                name='unique_combination'
+            )
+        ]

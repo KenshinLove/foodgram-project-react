@@ -1,15 +1,17 @@
-import base64
-
-from django.core.files.base import ContentFile
+from django.contrib.auth import get_user_model
+from drf_extra_fields.fields import Base64ImageField
 from rest_framework.serializers import (
-    CharField, ImageField, ModelSerializer,
-    PrimaryKeyRelatedField, ReadOnlyField, SerializerMethodField
+    CharField, ModelSerializer, PrimaryKeyRelatedField,
+    ReadOnlyField, SerializerMethodField, ValidationError
 )
+
 from recipes.models import (
     Favorite, Ingredient, IngredientsInRecipe,
     Recipe, ShoppingCart, Tag
 )
-from users.models import CustomUser, Subscription
+from users.models import Subscription
+
+CustomUser = get_user_model()
 
 
 class CustomUserReadSerializer(ModelSerializer):
@@ -24,17 +26,15 @@ class CustomUserReadSerializer(ModelSerializer):
 
     def get_is_subscribed(self, obj):
         request = self.context.get('request')
-        if request is not None:
-            user = request.user
-            if user.is_authenticated:
-                return Subscription.objects.filter(user=user,
-                                                   author=obj).exists()
-        return False
+        return (request and request.user.is_authenticated
+                and request.user.subscriptions_user.filter(
+                    author=obj
+                ).exists())
 
 
 class CustomUserCreateSerializer(ModelSerializer):
 
-    password = CharField()
+    password = CharField(write_only=True)
 
     class Meta:
         model = CustomUser
@@ -44,7 +44,7 @@ class CustomUserCreateSerializer(ModelSerializer):
         )
 
 
-class SubscriptionSerializer(ModelSerializer):
+class SubscriptionReadSerializer(ModelSerializer):
 
     is_subscribed = SerializerMethodField()
     recipes = SerializerMethodField()
@@ -59,13 +59,10 @@ class SubscriptionSerializer(ModelSerializer):
 
     def get_is_subscribed(self, obj):
         request = self.context.get('request')
-        author = obj
-        if not request.user.is_authenticated:
-            return False
-        else:
-            return Subscription.objects.filter(
-                author=author, user=request.user
-            ).exists()
+        return (request and request.user.is_authenticated
+                and request.user.subscriptions_user.filter(
+                    author=obj
+                ).exists())
 
     def get_recipes(self, obj):
         request = self.context.get('request')
@@ -82,6 +79,25 @@ class SubscriptionSerializer(ModelSerializer):
 
     def get_recipes_count(self, obj):
         return obj.recipes.count()
+
+
+class SubscriptionCreateSerializer:
+
+    class Meta:
+        model = Subscription
+        fields = '__all__'
+
+    def validate(self, data):
+        user = data.get('user')
+        author = data.get('author')
+        if user == author:
+            raise ValidationError(
+                'Нельзя подписаться на себя'
+            )
+        if Subscription.objects.filter(user=user, author=author).exists():
+            raise ValidationError(
+                'Нельзя подписаться два раза'
+            )
 
 
 class IngredientSerializer(ModelSerializer):
@@ -120,23 +136,13 @@ class IngredientsInRecipeCreateSerializer(ModelSerializer):
         fields = ('id', 'amount')
 
 
-class Base64ImageField(ImageField):
-
-    def to_internal_value(self, data):
-        if isinstance(data, str) and data.startswith('data:image'):
-            format, imgstr = data.split(';base64,')
-            ext = format.split('/')[-1]
-            data = ContentFile(base64.b64decode(imgstr), name='temp.' + ext)
-        return super().to_internal_value(data)
-
-
 class RecipeReadSerializer(ModelSerializer):
     tags = TagSerializer(many=True, read_only=True)
     author = CustomUserReadSerializer(read_only=True)
     ingredients = IngredientsInRecipeReadSerializer(
         many=True, read_only=True, source='ingredients_list'
     )
-    image = Base64ImageField(required=False, allow_null=True)
+    image = Base64ImageField()
     is_in_favorite = SerializerMethodField()
     is_in_shopping_cart = SerializerMethodField()
 
@@ -150,21 +156,13 @@ class RecipeReadSerializer(ModelSerializer):
 
     def get_is_in_favorite(self, obj):
         request = self.context.get('request')
-        if request is not None:
-            user = request.user
-            if user.is_authenticated:
-                return Favorite.objects.filter(user=user,
-                                               recipe=obj).exists()
-        return False
+        return (request and request.user.is_authenticated
+                and request.user.favorites.filter(recipe=obj).exists())
 
     def get_is_in_shopping_cart(self, obj):
         request = self.context.get('request')
-        if request is not None:
-            user = request.user
-            if user.is_authenticated:
-                return ShoppingCart.objects.filter(user=user,
-                                                   recipe=obj).exists()
-        return False
+        return (request and request.user.is_authenticated
+                and request.user.shopping_cart.filter(recipe=obj).exists())
 
 
 class RecipeCreateUpdateSerializer(ModelSerializer):
@@ -188,27 +186,20 @@ class RecipeCreateUpdateSerializer(ModelSerializer):
         tags = validated_data.pop('tags')
         ingredients = validated_data.pop('ingredients')
         recipe = Recipe.objects.create(author=author, **validated_data)
-        ingr_list = []
-        for item in ingredients:
-            ingr_list.append(IngredientsInRecipe(
-                recipe=recipe,
-                ingredient=item['id'],
-                amount=item['amount']
-            ))
-            IngredientsInRecipe.objects.bulk_create(ingr_list)
+        self.get_ingredient_list(recipe, ingredients)
         recipe.tags.set(tags)
         return recipe
 
     def update(self, recipe, validated_data):
-        if validated_data.get('image') is not None:
-            recipe.image = validated_data.pop('image')
-        recipe.name = validated_data.get('name')
-        recipe.text = validated_data.get('text')
-        recipe.cooking_time = validated_data.get('cooking_time')
         tags = validated_data.pop('tags')
         ingredients = validated_data.pop('ingredients')
+        recipe = super().update(recipe, validated_data)
         recipe.tags.set(tags)
         IngredientsInRecipe.objects.filter(recipe=recipe).delete()
+        self.get_ingredient_list(recipe, ingredients)
+        return recipe
+
+    def get_ingredient_list(self, recipe, ingredients):
         ingr_list = []
         for item in ingredients:
             ingr_list.append(IngredientsInRecipe(
@@ -217,8 +208,6 @@ class RecipeCreateUpdateSerializer(ModelSerializer):
                 amount=item['amount']
             ))
             IngredientsInRecipe.objects.bulk_create(ingr_list)
-        recipe.save()
-        return recipe
 
     def to_representation(self, recipe):
         return RecipeReadSerializer(recipe, context=self.context).data
@@ -233,27 +222,29 @@ class RecipeForOtherModelsSerializer(ModelSerializer):
 
 class FavoriteSerializer(ModelSerializer):
 
-    recipe = PrimaryKeyRelatedField(
-        queryset=Recipe.objects.all()
-    )
-    user = PrimaryKeyRelatedField(
-        queryset=CustomUser.objects.all()
-    )
-
     class Meta:
         model = Favorite
         fields = '__all__'
 
+    def validate(self, data):
+        user = data.get('user')
+        recipe = data.get('recipe')
+        if Favorite.objects.filter(user=user, recipe=recipe).exists():
+            raise ValidationError(
+                'Нельзя добавить рецепт два раза'
+            )
+
 
 class ShoppingCartSerializer(ModelSerializer):
-
-    recipe = PrimaryKeyRelatedField(
-        queryset=Recipe.objects.all()
-    )
-    user = PrimaryKeyRelatedField(
-        queryset=CustomUser.objects.all()
-    )
 
     class Meta:
         model = ShoppingCart
         fields = '__all__'
+
+    def validate(self, data):
+        user = data.get('user')
+        recipe = data.get('recipe')
+        if ShoppingCart.objects.filter(user=user, recipe=recipe).exists():
+            raise ValidationError(
+                'Нельзя добавить рецепт два раза'
+            )
