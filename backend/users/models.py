@@ -2,6 +2,7 @@ from django.contrib.auth.models import AbstractUser
 from django.contrib.auth.validators import UnicodeUsernameValidator
 from django.db import models
 
+from backend.settings import MAX_LENGTH
 from .validators import validate_username
 
 
@@ -13,7 +14,7 @@ class CustomUser(AbstractUser):
     username = models.CharField(
         max_length=150,
         unique=True,
-        validators=(UnicodeUsernameValidator(), validate_username(), ),
+        validators=(UnicodeUsernameValidator(), validate_username),
     )
     email = models.EmailField(
         max_length=254,
@@ -22,10 +23,12 @@ class CustomUser(AbstractUser):
     first_name = models.CharField(
         null=False,
         blank=False,
+        max_length=MAX_LENGTH
     )
     last_name = models.CharField(
         null=False,
         blank=False,
+        max_length=MAX_LENGTH
     )
 
     class Meta:
@@ -50,6 +53,6 @@ class Subscription(models.Model):
         constraints = [
             models.UniqueConstraint(
                 fields=['user', 'author'],
-                name='unique_combination'
+                name='unique_subscription'
             )
         ]
