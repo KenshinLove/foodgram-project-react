@@ -11,14 +11,17 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
+from api.add_delete import add_delete_recipe
 from api.serializers import (
     FavoriteSerializer, IngredientSerializer, RecipeReadSerializer,
-    RecipeCreateUpdateSerializer, RecipeForOtherModelsSerializer,
-    ShoppingCartSerializer, SubscriptionCreateSerializer,
-    SubscriptionReadSerializer, TagSerializer,
-    CustomUserCreateSerializer, CustomUserReadSerializer,
+    RecipeCreateUpdateSerializer, ShoppingCartSerializer,
+    SubscriptionCreateSerializer, SubscriptionReadSerializer,
+    TagSerializer,
+
 )
-from api.utils import IsAuthorOrReadOnly, RecipesFilter, RecipesLimitPaginator
+from api.filters import RecipesFilter
+from api.paginators import RecipesLimitPaginator
+from api.permissions import IsAuthorOrReadOnly
 from recipes.models import (
     Favorite, Ingredient, IngredientsInRecipe,
     Recipe, ShoppingCart, Tag
@@ -33,11 +36,6 @@ class CustomUserViewSet(UserViewSet):
     http_method_names = ('get', 'post', 'delete')
     pagination_class = RecipesLimitPaginator
     permission_classes = (AllowAny, )
-
-    def get_serializer_class(self):
-        if self.request.method == 'POST':
-            return CustomUserCreateSerializer
-        return CustomUserReadSerializer
 
     @action(
         detail=True,
@@ -56,9 +54,9 @@ class CustomUserViewSet(UserViewSet):
                 'Вы отписались от этого автора',
                 status=status.HTTP_204_NO_CONTENT
             )
-        data = {'user': user, 'author': author}
+        data = {'user': user.id, 'author': author.id}
         create_serializer = SubscriptionCreateSerializer(
-            data,
+            data=data,
             context={'request': request}
         )
         create_serializer.is_valid()
@@ -107,59 +105,23 @@ class RecipeViewSet(ModelViewSet):
     filterset_class = RecipesFilter
 
     def get_serializer_class(self):
-        if ('GET' or 'DELETE') in self.request.method:
+        if self.request.method in ('GET' or 'DELETE'):
             return RecipeReadSerializer
         return RecipeCreateUpdateSerializer
 
     @action(detail=True, methods=['post', 'delete'],
             permission_classes=[IsAuthenticated, ])
     def favorite(self, request, pk):
-        user = request.user
-        recipe = get_object_or_404(Recipe, pk=pk)
-        favorite = Favorite.objects.filter(user=user, recipe=recipe)
-        if request.method == 'DELETE':
-            favorite.delete()
-            return Response(
-                'Рецепт удален из избранного',
-                status=status.HTTP_204_NO_CONTENT
-            )
-        data = {'user': user, 'recipe': recipe}
-        create_serializer = FavoriteSerializer(
-            data,
-            context={'request': request}
-        )
-        create_serializer.is_valid()
-        create_serializer.save()
-        read_serializer = RecipeForOtherModelsSerializer(
-            recipe,
-            context={'request': request}
-        )
-        return Response(read_serializer.data, status=status.HTTP_201_CREATED)
+        serializer = FavoriteSerializer
+        model = Favorite
+        return add_delete_recipe(serializer, pk, request, model)
 
     @action(detail=True, methods=['post', 'delete'],
             permission_classes=[IsAuthenticated, ])
     def shopping_cart(self, request, pk):
-        user = request.user
-        recipe = get_object_or_404(Recipe, pk=pk)
-        shopping_cart = ShoppingCart.objects.filter(user=user, recipe=recipe)
-        if request.method == 'DELETE':
-            shopping_cart.delete()
-            return Response(
-                'Рецепт удален из корзины',
-                status=status.HTTP_204_NO_CONTENT
-            )
-        data = {'user': user, 'recipe': recipe}
-        create_serializer = ShoppingCartSerializer(
-            data,
-            context={'request': request}
-        )
-        create_serializer.is_valid()
-        create_serializer.save()
-        read_serializer = RecipeForOtherModelsSerializer(
-            recipe,
-            context={'request': request}
-        )
-        return Response(read_serializer.data, status=status.HTTP_201_CREATED)
+        serializer = ShoppingCartSerializer
+        model = ShoppingCart
+        return add_delete_recipe(serializer, pk, request, model)
 
     @action(
         detail=False,
@@ -175,9 +137,9 @@ class RecipeViewSet(ModelViewSet):
             .annotate(total_amount=Sum('amount'))
             .order_by('ingredient__name')
         )
-        return self.print(ingredients)
+        return self.print_shopping_list_txt_file(ingredients)
 
-    def print(self, ingredients):
+    def print_shopping_list_txt_file(self, ingredients):
         shopping_list = ['Список покупок\n\n']
         for ingredient in ingredients:
             amount = ingredient['total_amount']

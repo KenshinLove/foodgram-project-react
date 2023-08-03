@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from django.contrib.auth.hashers import make_password
 from drf_extra_fields.fields import Base64ImageField
 from rest_framework.serializers import (
     CharField, ModelSerializer, PrimaryKeyRelatedField,
@@ -43,6 +44,10 @@ class CustomUserCreateSerializer(ModelSerializer):
             'last_name', 'password'
         )
 
+    def validate_password(self, password):
+        password = make_password(password)
+        return password
+
 
 class SubscriptionReadSerializer(ModelSerializer):
 
@@ -81,11 +86,11 @@ class SubscriptionReadSerializer(ModelSerializer):
         return obj.recipes.count()
 
 
-class SubscriptionCreateSerializer:
+class SubscriptionCreateSerializer(ModelSerializer):
 
     class Meta:
         model = Subscription
-        fields = '__all__'
+        fields = ('user', 'author')
 
     def validate(self, data):
         user = data.get('user')
@@ -98,6 +103,7 @@ class SubscriptionCreateSerializer:
             raise ValidationError(
                 'Нельзя подписаться два раза'
             )
+        return data
 
 
 class IngredientSerializer(ModelSerializer):
@@ -143,18 +149,18 @@ class RecipeReadSerializer(ModelSerializer):
         many=True, read_only=True, source='ingredients_list'
     )
     image = Base64ImageField()
-    is_in_favorite = SerializerMethodField()
+    is_favorited = SerializerMethodField()
     is_in_shopping_cart = SerializerMethodField()
 
     class Meta:
         model = Recipe
         fields = (
-            'id', 'tags', 'author', 'ingredients', 'is_in_favorite',
+            'id', 'tags', 'author', 'ingredients', 'is_favorited',
             'is_in_shopping_cart', 'name', 'image', 'text',
             'cooking_time'
         )
 
-    def get_is_in_favorite(self, obj):
+    def get_is_favorited(self, obj):
         request = self.context.get('request')
         return (request and request.user.is_authenticated
                 and request.user.favorites.filter(recipe=obj).exists())
@@ -194,8 +200,9 @@ class RecipeCreateUpdateSerializer(ModelSerializer):
         tags = validated_data.pop('tags')
         ingredients = validated_data.pop('ingredients')
         recipe = super().update(recipe, validated_data)
+        recipe.tags.clear()
         recipe.tags.set(tags)
-        IngredientsInRecipe.objects.filter(recipe=recipe).delete()
+        recipe.ingredients.clear()
         self.get_ingredient_list(recipe, ingredients)
         return recipe
 
@@ -207,7 +214,7 @@ class RecipeCreateUpdateSerializer(ModelSerializer):
                 ingredient=item['id'],
                 amount=item['amount']
             ))
-            IngredientsInRecipe.objects.bulk_create(ingr_list)
+        IngredientsInRecipe.objects.bulk_create(ingr_list)
 
     def to_representation(self, recipe):
         return RecipeReadSerializer(recipe, context=self.context).data
@@ -233,6 +240,7 @@ class FavoriteSerializer(ModelSerializer):
             raise ValidationError(
                 'Нельзя добавить рецепт два раза'
             )
+        return data
 
 
 class ShoppingCartSerializer(ModelSerializer):
@@ -248,3 +256,4 @@ class ShoppingCartSerializer(ModelSerializer):
             raise ValidationError(
                 'Нельзя добавить рецепт два раза'
             )
+        return data

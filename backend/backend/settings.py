@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     'rest_framework.authtoken',
     'djoser',
     'django_filters',
+    'colorfield',
     'api',
     'recipes',
     'users'
@@ -147,4 +148,19 @@ REST_FRAMEWORK = {
 }
 
 RECIPESR_ON_PAGE = 6
-MAX_LENGTH = 50
+TAG_MAX_LENGTH = 50
+USER_MAX_LENGTH = 150
+
+DJOSER = {
+    'LOGIN_FIELD': 'email',
+    'HIDE_USER': False,
+    'PERMISSIONS': {
+        'user': ['rest_framework.permissions.AllowAny'],
+        'user_list': ['rest_framework.permissions.AllowAny'],
+    },
+    'SERIALIZERS': {
+        'user': 'api.serializers.CustomUserReadSerializer',
+        'current_user': 'api.serializers.CustomUserReadSerializer',
+        'user_create': 'api.serializers.CustomUserCreateSerializer',
+    },
+}

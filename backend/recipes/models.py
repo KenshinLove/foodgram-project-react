@@ -1,9 +1,8 @@
 from colorfield.fields import ColorField
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.validators import MinValueValidator
 from django.db import models
-
-from backend.settings import MAX_LENGTH
 
 CustomUser = get_user_model()
 
@@ -22,14 +21,14 @@ class Ingredient (models.Model):
 
 class Tag(models.Model):
     name = models.CharField(
-        max_length=MAX_LENGTH,
+        max_length=settings.TAG_MAX_LENGTH,
         unique=True,
     )
     color = ColorField(
         unique=True,
     )
     slug = models.SlugField(
-        max_length=MAX_LENGTH,
+        max_length=settings.TAG_MAX_LENGTH,
         unique=True,
     )
 
@@ -62,9 +61,10 @@ class Recipe(models.Model):
     cooking_time = models.PositiveSmallIntegerField(
         validators=[MinValueValidator(1)],
     )
+    pub_date = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ('name', )
+        ordering = ('-pub_date', )
 
 
 class IngredientsInRecipe(models.Model):
