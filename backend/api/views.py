@@ -13,8 +13,9 @@ from rest_framework.viewsets import ModelViewSet
 
 from api.serializers import (
     FavoriteSerializer, IngredientSerializer, RecipeReadSerializer,
-    RecipeCreateUpdateSerializer, RecipeForOtherModelsSerializer, ShoppingCartSerializer,
-    SubscriptionCreateSerializer, SubscriptionReadSerializer, TagSerializer,
+    RecipeCreateUpdateSerializer, RecipeForOtherModelsSerializer,
+    ShoppingCartSerializer, SubscriptionCreateSerializer,
+    SubscriptionReadSerializer, TagSerializer,
 )
 from api.filters import RecipesFilter
 from api.paginators import RecipesLimitPaginator
@@ -105,14 +106,14 @@ class RecipeViewSet(ModelViewSet):
         if self.request.method in ('GET', 'DELETE'):
             return RecipeReadSerializer
         return RecipeCreateUpdateSerializer
-    
+
     def add_delete_recipe(self, serializer, pk, request, model):
         user = request.user
         recipe = get_object_or_404(Recipe, pk=pk)
         object = model.objects.filter(user=user, recipe=recipe)
         if request.method == 'DELETE':
             delete = object.delete()
-            if delete[0]==0:
+            if delete[0] == 0:
                 return Response(
                     'Такого рецепта нет',
                     status=status.HTTP_400_BAD_REQUEST
