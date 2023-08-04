@@ -27,7 +27,7 @@ services:
   
   frontend:
     container_name: frontend
-    image:kenshinlove/foodgram_frontend
+    image: kenshinlove/foodgram_frontend
     volumes:
       - ../frontend/:/app/result_build/
     depends_on:
