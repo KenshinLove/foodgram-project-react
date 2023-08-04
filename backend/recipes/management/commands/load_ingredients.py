@@ -10,7 +10,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **kwargs):
 
-        with open(f'{settings.BASE_DIR.parent}/data/ingredients.csv',
+        with open(f'{settings.BASE_DIR}/recipes/data/ingredients.csv',
                   'r', encoding='utf-8') as file:
             file_reader = csv.reader(file)
             next(file_reader)
