@@ -106,7 +106,7 @@ class RecipeViewSet(ModelViewSet):
             return RecipeReadSerializer
         return RecipeCreateUpdateSerializer
     
-    def add_delete_recipe(serializer, pk, request, model):
+    def add_delete_recipe(self, serializer, pk, request, model):
         user = request.user
         recipe = get_object_or_404(Recipe, pk=pk)
         object = model.objects.filter(user=user, recipe=recipe)
