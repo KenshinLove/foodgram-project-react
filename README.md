@@ -62,16 +62,7 @@ docker compose -f docker-compose.yml exec backend python manage.py createsuperus
 
 ## .env
 
-В корне проекта создайте файл .env и пропишите в него свои данные.
-
-Пример:
-
-```
-POSTGRES_DB=foodgram
-POSTGRES_USER=foodgram_user
-POSTGRES_PASSWORD=foodgram_password
-DB_NAME=foodgram
-```
+В корне проекта создайте файл .env по примеру из файла .env.example и пропишите в него свои данные.
 
 ## Workflow
 

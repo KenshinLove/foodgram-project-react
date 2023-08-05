@@ -84,8 +84,8 @@ class CustomUserViewSet(UserViewSet):
 class IngredientViewSet(ModelViewSet):
     queryset = Ingredient.objects.all()
     serializer_class = IngredientSerializer
-    filter_backends = (SearchFilter,)
-    search_fields = ('name', )
+    filter_backends = (SearchFilter, )
+    search_fields = ('^name', )
 
 
 class TagViewSet(ModelViewSet):

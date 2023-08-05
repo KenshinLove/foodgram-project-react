@@ -30,8 +30,6 @@ services:
     image: kenshinlove/foodgram_frontend
     volumes:
       - ../frontend/:/app/result_build/
-    depends_on:
-      - backend
   
   nginx:
     container_name: nginx
