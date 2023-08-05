@@ -17,7 +17,7 @@ from api.serializers import (
     ShoppingCartSerializer, SubscriptionCreateSerializer,
     SubscriptionReadSerializer, TagSerializer,
 )
-from api.filters import RecipesFilter
+from api.filters import IngredientsFilter, RecipesFilter
 from api.paginators import RecipesLimitPaginator
 from api.permissions import IsAuthorOrReadOnly
 from recipes.models import (
@@ -84,8 +84,8 @@ class CustomUserViewSet(UserViewSet):
 class IngredientViewSet(ModelViewSet):
     queryset = Ingredient.objects.all()
     serializer_class = IngredientSerializer
-    filter_backends = (SearchFilter, )
-    search_fields = ('^name', )
+    filter_backends = (DjangoFilterBackend, )
+    filterset_class = IngredientsFilter
 
 
 class TagViewSet(ModelViewSet):
