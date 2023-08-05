@@ -31,6 +31,7 @@ class RecipesFilter(FilterSet):
             return queryset.filter(shopping_cart__user=user)
         return queryset
 
+
 class IngredientsFilter(FilterSet):
     name = filters.CharFilter(lookup_expr='startswith')
 
