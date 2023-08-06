@@ -18,9 +18,9 @@ services:
     env_file: ../.env
     container_name: backend
     image: kenshinlove/foodgram_backend
-
     depends_on:
       - db
+    restart: always
     volumes:
       - static:/app/static/
       - media:/app/media/
@@ -44,3 +44,5 @@ services:
       - ../docs/:/usr/share/nginx/html/api/docs/
       - static:/var/html/static/
       - media:/var/html/media/
+    depends_on:
+      - backend
